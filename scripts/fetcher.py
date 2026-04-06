@@ -32,16 +32,20 @@ def _fetch_from_ossinsight(count: int, period: str) -> list[dict]:
         return []
 
     data = resp.json().get("data", [])
-    return [
-        {
-            "repo_name": item["repo_name"],
+    if not isinstance(data, list):
+        return []
+    repos = []
+    for item in data[:count]:
+        if not isinstance(item, dict):
+            continue
+        repos.append({
+            "repo_name": item.get("repo_name", item.get("name", "")),
             "language": item.get("language", ""),
             "stars": item.get("stars", 0),
             "forks": item.get("forks", 0),
             "description": item.get("description", ""),
-        }
-        for item in data[:count]
-    ]
+        })
+    return repos
 
 
 def _fetch_from_scrape(count: int) -> list[dict]:
