@@ -1,12 +1,13 @@
 """主入口：编排 抓取 → 分析 → 推送 流程。"""
 import os
 import sys
+from datetime import datetime, timezone, timedelta
 
 import yaml
 
 from scripts.fetcher import fetch_trending_list, fetch_repo_details
 from scripts.analyzer import load_prompt_template, build_prompt, analyze_repo
-from scripts.pusher import push_summary, push_repo_report
+from scripts.pusher import create_issue, build_summary_section, build_repo_section
 
 
 def load_config(config_path: str) -> dict:
@@ -18,12 +19,11 @@ def run(
     config: dict,
     prompt_template: str,
     api_key: str,
-    webhook_url: str,
-    github_token: str | None = None,
+    github_token: str,
+    issue_repo: str,
 ) -> None:
     trending_cfg = config["trending"]
     llm_cfg = config["llm"]
-    push_cfg = config["push"]
 
     print(f"Fetching trending repos (source={trending_cfg['source']}, count={trending_cfg['count']})...")
     repos = fetch_trending_list(
@@ -37,9 +37,8 @@ def run(
 
     print(f"Found {len(repos)} trending repos.")
 
-    if push_cfg.get("summary_first", True):
-        print("Pushing summary...")
-        push_summary(webhook_url, repos)
+    # 构建报告内容
+    sections = [build_summary_section(repos), "\n---\n"]
 
     for i, repo in enumerate(repos, 1):
         repo_name = repo["repo_name"]
@@ -58,9 +57,24 @@ def run(
             base_url=llm_cfg.get("base_url"),
         )
 
-        push_repo_report(webhook_url, details, analysis)
+        sections.append(build_repo_section(details, analysis))
+        sections.append("\n---\n")
 
-    print("Done.")
+    # 创建 Issue
+    beijing_tz = timezone(timedelta(hours=8))
+    today = datetime.now(beijing_tz).strftime("%Y-%m-%d")
+    title = f"GitHub Trending 日报 | {today}"
+    body = "\n".join(sections)
+
+    print("Creating issue...")
+    issue_url = create_issue(
+        repo=issue_repo,
+        title=title,
+        body=body,
+        github_token=github_token,
+        labels=["daily-report"],
+    )
+    print(f"Done. Issue created: {issue_url}")
 
 
 def main():
@@ -69,17 +83,20 @@ def main():
     prompt_template = load_prompt_template(os.path.join(project_root, "prompts", "analyze-repo.txt"))
 
     api_key = os.environ.get("LLM_API_KEY")
-    webhook_url = os.environ.get("WECHAT_WEBHOOK_URL")
     github_token = os.environ.get("GITHUB_TOKEN")
+    issue_repo = os.environ.get("ISSUE_REPO", config.get("push", {}).get("issue_repo", ""))
 
     if not api_key:
         print("ERROR: LLM_API_KEY not set.")
         sys.exit(1)
-    if not webhook_url:
-        print("ERROR: WECHAT_WEBHOOK_URL not set.")
+    if not github_token:
+        print("ERROR: GITHUB_TOKEN not set.")
+        sys.exit(1)
+    if not issue_repo:
+        print("ERROR: ISSUE_REPO not set.")
         sys.exit(1)
 
-    run(config, prompt_template, api_key, webhook_url, github_token)
+    run(config, prompt_template, api_key, github_token, issue_repo)
 
 
 if __name__ == "__main__":

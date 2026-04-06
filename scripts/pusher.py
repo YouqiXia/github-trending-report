@@ -1,52 +1,52 @@
-"""企业微信群机器人推送模块。
+"""GitHub Issue 推送模块。
 
-通过 Webhook 发送 Markdown 格式消息，单条限制 4096 字节。
+将分析报告以 Issue 形式发布到仓库，通过 GitHub 通知邮件送达。
 """
-import time
-
 import requests
 
 
-MAX_MESSAGE_BYTES = 4096
-
-
-def send_wechat_message(webhook_url: str, content: str) -> None:
-    """发送一条 markdown 消息到企业微信群机器人。"""
-    encoded = content.encode("utf-8")
-    if len(encoded) > MAX_MESSAGE_BYTES:
-        content = encoded[:MAX_MESSAGE_BYTES - 6].decode("utf-8", errors="ignore") + "\n..."
-
-    payload = {
-        "msgtype": "markdown",
-        "markdown": {"content": content},
+def create_issue(
+    repo: str,
+    title: str,
+    body: str,
+    github_token: str,
+    labels: list[str] | None = None,
+) -> str:
+    """创建 GitHub Issue，返回 Issue URL。"""
+    url = f"https://api.github.com/repos/{repo}/issues"
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+        "Authorization": f"token {github_token}",
     }
-    requests.post(webhook_url, json=payload, timeout=30)
+    payload = {"title": title, "body": body}
+    if labels:
+        payload["labels"] = labels
+
+    resp = requests.post(url, json=payload, headers=headers, timeout=30)
+    resp.raise_for_status()
+    return resp.json()["html_url"]
 
 
-def push_summary(webhook_url: str, repos: list[dict]) -> None:
-    """推送今日概览摘要。"""
-    lines = ["**📊 GitHub Trending 日报**\n"]
+def build_summary_section(repos: list[dict]) -> str:
+    """生成今日概览部分的 Markdown。"""
+    lines = ["## 今日概览\n"]
     for i, repo in enumerate(repos, 1):
         name = repo["repo_name"]
         stars = repo.get("stars", 0)
         today = repo.get("stars_today", 0)
         lang = repo.get("language", "")
-        lang_tag = f" [{lang}]" if lang else ""
-        lines.append(f"{i}. {name} ⭐{stars} (+{today}){lang_tag}")
+        lang_tag = f" `{lang}`" if lang else ""
+        lines.append(f"{i}. **{name}** ⭐{stars} (+{today}){lang_tag}")
+    return "\n".join(lines)
 
-    send_wechat_message(webhook_url, "\n".join(lines))
 
-
-def push_repo_report(webhook_url: str, repo: dict, analysis: str) -> None:
-    """推送单个仓库的分析报告。"""
+def build_repo_section(repo: dict, analysis: str) -> str:
+    """生成单个仓库分析部分的 Markdown。"""
     name = repo["repo_name"]
     stars = repo.get("stars", 0)
     today = repo.get("stars_today", 0)
     lang = repo.get("language", "")
-    lang_tag = f"[{lang}] " if lang else ""
+    lang_tag = f"`{lang}` " if lang else ""
 
-    header = f"**📦 {name}** ⭐{stars} (+{today} today)\n{lang_tag}\n"
-    content = header + analysis
-
-    send_wechat_message(webhook_url, content)
-    time.sleep(1)
+    header = f"### {name} ⭐{stars} (+{today} today) {lang_tag}\n"
+    return header + "\n" + analysis

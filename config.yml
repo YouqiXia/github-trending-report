@@ -10,5 +10,7 @@ llm:
   max_readme_length: 8000
 
 push:
-  channel: wechat_work
-  summary_first: true
+  channel: github_issue
+  issue_repo: YouqiXia/github-trending-report
+  labels:
+    - daily-report
