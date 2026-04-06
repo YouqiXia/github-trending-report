@@ -1,0 +1,13 @@
+trending:
+  source: ossinsight
+  count: 20
+  period: past_24_hours
+
+llm:
+  provider: openai
+  model: codex-mini-latest
+  max_readme_length: 8000
+
+push:
+  channel: wechat_work
+  summary_first: true
