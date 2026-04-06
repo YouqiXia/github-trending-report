@@ -53,7 +53,10 @@ def run(
         details["stars_today"] = repo.get("stars_today", 0)
 
         prompt = build_prompt(prompt_template, details)
-        analysis = analyze_repo(prompt, api_key=api_key, model=llm_cfg["model"])
+        analysis = analyze_repo(
+            prompt, api_key=api_key, model=llm_cfg["model"],
+            base_url=llm_cfg.get("base_url"),
+        )
 
         push_repo_report(webhook_url, details, analysis)
 

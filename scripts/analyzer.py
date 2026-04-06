@@ -32,9 +32,12 @@ def build_prompt(template: str, repo_data: dict) -> str:
     return result
 
 
-def analyze_repo(prompt: str, api_key: str, model: str) -> str:
+def analyze_repo(prompt: str, api_key: str, model: str, base_url: str | None = None) -> str:
     """调用 OpenAI API 分析仓库，返回分析文本。"""
-    client = openai.OpenAI(api_key=api_key)
+    kwargs = {"api_key": api_key}
+    if base_url:
+        kwargs["base_url"] = base_url
+    client = openai.OpenAI(**kwargs)
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],

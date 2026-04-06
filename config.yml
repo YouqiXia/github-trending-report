@@ -5,7 +5,8 @@ trending:
 
 llm:
   provider: openai
-  model: codex-mini-latest
+  model: gpt-5.4
+  base_url: https://rust.cat
   max_readme_length: 8000
 
 push:
